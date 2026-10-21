@@ -630,8 +630,8 @@ function stepCar(c,dt,inp){
   if(inp.nitro&&c.nitro>0&&vF>5){c.nitroOn=true;c.nitro=Math.max(0,c.nitro-dt*32);}else c.nitroOn=false;
   c.boostT=Math.max(0,c.boostT-dt);
   const boost=c.nitroOn||c.boostT>0;
-  let eff=inp.steer,rate=1.9*st.handle/(1+spd/80);
-  if(c.drifting){eff=c.driftDir*(0.55+0.45*inp.steer*c.driftDir);rate*=1.35;}
+  let eff=inp.steer,rate=2.7*st.handle/(1+spd/130);
+  if(c.drifting){eff=c.driftDir*(0.55+0.45*inp.steer*c.driftDir);rate*=1.5;}
   c.a-=eff*rate*Math.min(spd/12,1)*(vF<0?-1:1)*dt;
   const fx=Math.sin(c.a),fz=Math.cos(c.a),rx=-fz,rz=fx;
   vF=c.vx*fx+c.vz*fz;let vR=c.vx*rx+c.vz*rz;

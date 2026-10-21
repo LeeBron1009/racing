@@ -9,7 +9,8 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Microsoft JhengHei",sans-serif;color:#fff}
 canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hidden{display:none!important}
-#menu,#result{position:fixed;inset:0;overflow:auto;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.25) 40%,rgba(0,0,0,.8))}
+#menu,#result,#roomPanel{position:fixed;inset:0;overflow:auto;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.25) 40%,rgba(0,0,0,.8))}
+#roomPanel{background:linear-gradient(180deg,rgba(0,0,0,.65),rgba(0,0,0,.35) 50%,rgba(0,0,0,.8))}
 h1{margin:4px 0;font-size:clamp(26px,5vw,44px);text-shadow:0 0 12px #0af;letter-spacing:2px}
 h3{margin:12px 0 4px;color:#7fdcff}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
@@ -23,9 +24,10 @@ h3{margin:12px 0 4px;color:#7fdcff}
 .bar i{display:block;height:100%;background:#0cf;border-radius:3px}
 .sw{width:30px;height:30px;border-radius:50%;border:3px solid #fff3;cursor:pointer}
 .sw.sel{border-color:#fff}
-button,select{font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#0aa6e8;color:#fff;font-weight:bold;cursor:pointer}
+button,select,input{font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#0aa6e8;color:#fff;font-weight:bold;cursor:pointer}
+input{background:#fff;color:#111;cursor:text;width:130px;-webkit-user-select:text;user-select:text;font-weight:normal}
 button.big{font-size:22px;padding:12px 40px;background:#ff7a00}
-button:disabled{background:#456;color:#aab;cursor:not-allowed}
+button:disabled,select:disabled{background:#456;color:#aab;cursor:not-allowed}
 select{background:#234}
 #hud{position:fixed;inset:0;pointer-events:none}
 #hud .tl{position:absolute;left:12px;top:10px;font-size:clamp(16px,3vw,24px);font-weight:bold;text-shadow:0 2px 4px #000;line-height:1.5}
@@ -45,6 +47,7 @@ select{background:#234}
 #bB{right:14px;bottom:20px;width:76px;height:76px}
 #bMenu{position:absolute;left:12px;bottom:12px;pointer-events:auto;padding:4px 10px;font-size:12px;background:#0006}
 table{border-collapse:collapse;margin:10px 0}td,th{padding:6px 14px;border-bottom:1px solid #fff3}
+.pl{background:rgba(20,30,50,.88);border-radius:10px;padding:8px 14px;margin:6px 0;max-width:420px}
 </style>
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
 </head>
@@ -67,14 +70,29 @@ table{border-collapse:collapse;margin:10px 0}td,th{padding:6px 14px;border-botto
   <div class="row">
     難度:<select id="diff"><option value="0.88">簡單</option><option value="0.97" selected>普通</option><option value="1.06">困難</option></select>
     圈數:<select id="laps"><option value="2">2 圈</option><option value="3" selected>3 圈</option><option value="5">5 圈</option></select>
-    <label><input type="checkbox" id="touchChk"> 顯示觸控按鈕</label>
-    <label><input type="checkbox" id="mute"> 靜音</label>
+    <label><input type="checkbox" id="touchChk" style="width:auto"> 顯示觸控按鈕</label>
+    <label><input type="checkbox" id="mute" style="width:auto"> 靜音</label>
   </div>
+  <div class="row"><button class="big" id="startBtn">單人比賽</button></div>
+
+  <h3>④ 線上房間(最多 4 人)</h3>
   <div class="row">
-    <button class="big" id="startBtn">單人比賽</button>
-    <button id="onlineBtn" disabled>線上房間(即將推出)</button>
+    <input id="olName" maxlength="8" placeholder="你的暱稱">
+    <button id="createBtn">建立房間</button>
+    <input id="joinCode" maxlength="4" inputmode="numeric" placeholder="4 位房號" style="width:110px">
+    <button id="joinBtn">加入房間</button>
   </div>
   <div style="font-size:14px;opacity:.85;line-height:1.6">電腦:W/S 油門煞車、A/D 轉向、Shift 漂移、Space 氮氣、R 重來<br>手機:左下轉向,右下煞車、漂移、氮氣(自動油門)</div>
+</div>
+
+<div id="roomPanel" class="hidden">
+  <h1>🌐 線上房間</h1>
+  <div>房號:<b id="roomCode" style="font-size:40px;letter-spacing:6px;color:#ffe14d"></b>(告訴朋友這個數字)</div>
+  <div class="row">地圖 <select id="roomMap"></select> 圈數
+    <select id="roomLaps"><option value="2">2 圈</option><option value="3">3 圈</option><option value="5">5 圈</option></select></div>
+  <div id="roomPlayers"></div>
+  <div id="roomMsg" style="margin:8px 0;color:#7fdcff"></div>
+  <div class="row"><button class="big" id="roomStart">開始比賽</button><button id="roomLeave">離開房間</button></div>
 </div>
 
 <div id="hud" class="hidden">
@@ -100,14 +118,26 @@ table{border-collapse:collapse;margin:10px 0}td,th{padding:6px 14px;border-botto
 <script type="module">
 import * as THREE from 'three';
 
+/* ============ ★★★ 把這裡換成你自己的 Firebase 設定 ★★★ ============ */
+const FIREBASE_CONFIG={
+  apiKey:"YOUR_API_KEY",
+  authDomain:"YOUR_PROJECT.firebaseapp.com",
+  databaseURL:"https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"YOUR_PROJECT",
+  appId:"YOUR_APP_ID"
+};
+const FB_VERSION='10.12.2';
+/* ================================================================== */
+
 /* ================= 存檔 ================= */
 const KEY='speedgame_v1';
-let save={coins:500,owned:[0],sel:0,color:0,map:0,bests:{},best:null};
+let save={coins:500,owned:[0],sel:0,color:0,map:0,bests:{},best:null,name:''};
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s)save=Object.assign(save,s);}catch(e){}
 if(typeof save.best==='number'){save.bests[0]=save.best;}
 save.best=null;
 const doSave=()=>{try{localStorage.setItem(KEY,JSON.stringify(save));}catch(e){}};
 const bestOf=m=>save.bests[m]??null;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ================= 資料 ================= */
 let TOTAL_LAPS=3;
@@ -137,21 +167,143 @@ const TRACKS=[
   th:{sky:0xcfe3f2,fogNear:100,fogFar:520,ground:0xf2f6fa,road:0x50545c,curbA:0x2a6fdb,curbB:0xffffff,line:0xffffff,hemi:1.15,sun:0.9,decor:'snow'}}
 ];
 
-/* ================= 線上預留 ================= */
-const Net={
-  mode:'solo',            // 'solo' 或 'online'
-  myId:null,
-  send(type,data){},      // 之後接 Firebase / WebSocket
-  onMessage:null          // 收到訊息時呼叫
-};
-let raceConfig={mapIndex:0,laps:3,seed:1};
-function getSnapshot(c){return {x:c.x,z:c.z,a:c.a,vx:c.vx,vz:c.vz,vF:c.vF,drifting:c.drifting,driftDir:c.driftDir,nitroOn:c.nitroOn,boostT:c.boostT,lap:c.lap,idx:c.idx,t:performance.now()};}
+/* ================= 網路層 ================= */
+const Net={mode:'solo',send(type,data){
+  if(type==='state'&&FB&&Room.code)FB.set(roomRef(Room.code,'states/'+FB.uid),data).catch(()=>{});
+}};
+const Room={code:null,meta:null,players:{},unsubs:[],lastRace:null,startAt:0};
+let FB=null;
+const r2=v=>Math.round(v*100)/100;
+function getSnapshot(c){return {x:r2(c.x),z:r2(c.z),a:r2(c.a),vF:r2(c.vF),drifting:!!c.drifting,driftDir:c.driftDir,nitroOn:!!c.nitroOn,boostT:r2(c.boostT),lap:c.lap,idx:c.idx,fin:c.finished?1:0,finT:r2(c.finishTime||0)};}
 function applySnapshot(c,s){c.target=s;}
-function createRemoteCar(id,name,carIdx,colorIdx){
-  const c=newCar(false,CARS[carIdx],COLORS[colorIdx],name);c.isRemote=true;c.id=id;
-  scene.add(c.mesh);cars.push(c);return c;
+function roomRef(code,sub){return FB.ref(FB.db,`rooms/${code}/${sub}`);}
+
+async function initFirebase(){
+  if(FB)return FB;
+  if(FIREBASE_CONFIG.apiKey==='YOUR_API_KEY'){alert('請先在程式碼最上方填入你的 Firebase 設定(FIREBASE_CONFIG)。');return null;}
+  try{
+    const base=`https://www.gstatic.com/firebasejs/${FB_VERSION}/`;
+    const [A,Au,D]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-database.js')]);
+    const app=A.initializeApp(FIREBASE_CONFIG);
+    const cred=await Au.signInAnonymously(Au.getAuth(app));
+    const database=D.getDatabase(app);
+    FB={...D,db:database,uid:cred.user.uid,offset:0};
+    D.onValue(D.ref(database,'.info/serverTimeOffset'),s=>{FB.offset=s.val()||0;});
+    return FB;
+  }catch(e){alert('Firebase 連線失敗:'+(e.message||e));return null;}
 }
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const getName=()=>{const n=($('olName').value||'').trim()||('玩家'+Math.floor(Math.random()*90+10));save.name=n;doSave();return n;};
+function sortedPlayers(){
+  return Object.entries(Room.players).sort((a,b)=>((a[1].joined||0)-(b[1].joined||0))||a[0].localeCompare(b[0]));
+}
+async function createRoom(){
+  const f=await initFirebase();if(!f)return;
+  try{
+    const name=getName();let code,tries=0;
+    do{code=String(1000+Math.floor(Math.random()*9000));const s=await f.get(roomRef(code,'meta'));if(!s.exists())break;}while(++tries<8);
+    await f.set(roomRef(code,'meta'),{host:f.uid,map:save.map,laps:+$('laps').value,state:'lobby',seed:0,startAt:0,createdAt:f.serverTimestamp()});
+    await enterRoom(code,name);
+  }catch(e){alert('建立房間失敗:'+(e.message||e)+'\n請檢查 Realtime Database 規則。');}
+}
+async function joinRoom(){
+  const f=await initFirebase();if(!f)return;
+  const code=($('joinCode').value||'').trim();
+  if(!/^\d{4}$/.test(code)){alert('請輸入 4 位數房號');return;}
+  try{
+    const name=getName();
+    const m=await f.get(roomRef(code,'meta'));
+    if(!m.exists()){alert('找不到這個房間');return;}
+    if(m.val().state==='racing'){alert('這個房間正在比賽,請稍後再加入');return;}
+    const p=await f.get(roomRef(code,'players'));
+    if(p.exists()&&Object.keys(p.val()).length>=4){alert('房間已滿(最多 4 人)');return;}
+    await enterRoom(code,name);
+  }catch(e){alert('加入房間失敗:'+(e.message||e));}
+}
+async function enterRoom(code,name){
+  Room.code=code;Room.meta=null;Room.players={};Room.lastRace=null;Room.startAt=0;
+  const pr=roomRef(code,'players/'+FB.uid);
+  await FB.set(pr,{name,car:save.sel,color:save.color,joined:FB.serverTimestamp()});
+  FB.onDisconnect(pr).remove();
+  FB.onDisconnect(roomRef(code,'states/'+FB.uid)).remove();
+  Room.unsubs=[
+    FB.onValue(roomRef(code,'meta'),onMeta),
+    FB.onValue(roomRef(code,'players'),onPlayers),
+    FB.onValue(roomRef(code,'states'),onStates)
+  ];
+  Net.mode='online';
+  $('menu').classList.add('hidden');$('roomPanel').classList.remove('hidden');
+  renderRoom();
+}
+function onMeta(snap){
+  const m=snap.val();
+  if(!m){if(Room.code){alert('房間已關閉');leaveRoom();}return;}
+  Room.meta=m;
+  if(m.state==='lobby'&&state==='menu'&&m.map!==curMap)buildTrack(m.map);
+  renderRoom();
+  if(m.state==='racing'&&m.startAt&&m.startAt!==Room.lastRace&&(state==='menu'||state==='finished')){
+    Room.lastRace=m.startAt;Room.startAt=m.startAt;TOTAL_LAPS=m.laps;
+    if(m.map!==curMap)buildTrack(m.map);
+    startRace();
+  }
+}
+function onPlayers(snap){
+  Room.players=snap.val()||{};
+  const m=Room.meta,list=sortedPlayers();
+  if(m&&list.length&&!Room.players[m.host]&&list[0][0]===FB.uid){
+    FB.update(roomRef(Room.code,'meta'),{host:FB.uid}).catch(()=>{});
+  }
+  for(const c of cars.filter(x=>x.isRemote&&!Room.players[x.id])){
+    scene.remove(c.mesh);cars=cars.filter(x=>x!==c);
+  }
+  renderRoom();
+}
+function onStates(snap){
+  const v=snap.val()||{};
+  for(const uid in v){if(uid===FB.uid)continue;const c=cars.find(x=>x.id===uid);if(c)applySnapshot(c,v[uid]);}
+}
+function renderRoom(){
+  if(!Room.code||!FB)return;
+  const meta=Room.meta||{},isHost=meta.host===FB.uid,list=sortedPlayers();
+  $('roomCode').textContent=Room.code;
+  $('roomPlayers').innerHTML=list.map(([uid,p],i)=>`<div class="pl">${i+1}. <b>${esc(p.name)}</b> ${uid===meta.host?'👑':''} ${uid===FB.uid?'(你)':''}　<span class="tag">${esc(CARS[p.car]?CARS[p.car].name:'')}</span></div>`).join('');
+  $('roomMap').disabled=$('roomLaps').disabled=!isHost;
+  if(meta.map!=null)$('roomMap').value=meta.map;
+  if(meta.laps!=null)$('roomLaps').value=meta.laps;
+  $('roomStart').style.display=isHost?'':'none';
+  $('roomStart').disabled=!(isHost&&meta.state==='lobby'&&list.length>=2);
+  $('roomMsg').textContent=isHost?(list.length<2?'等待其他玩家加入…把房號告訴朋友':(meta.state==='lobby'?'人到齊了,可以開始!':'比賽進行中…')):(meta.state==='racing'?'比賽進行中,等房主回到房間…':'等待房主開始比賽…');
+}
+async function hostStart(){
+  if(!Room.meta||Room.meta.host!==FB.uid)return;
+  try{await FB.update(roomRef(Room.code,'meta'),{state:'racing',seed:Date.now()%100000,startAt:Date.now()+FB.offset+3500});}
+  catch(e){alert('開始失敗:'+(e.message||e));}
+}
+async function backToRoom(){
+  try{await FB.remove(roomRef(Room.code,'states/'+FB.uid));}catch(e){}
+  if(Room.meta&&Room.meta.host===FB.uid){try{await FB.update(roomRef(Room.code,'meta'),{state:'lobby',startAt:0});}catch(e){}}
+  state='menu';buildCars();ais.forEach(a=>a.mesh.visible=false);
+  $('result').classList.add('hidden');$('hud').classList.add('hidden');$('touch').classList.add('hidden');
+  $('roomPanel').classList.remove('hidden');renderRoom();
+}
+async function leaveRoom(){
+  const code=Room.code;
+  Room.unsubs.forEach(u=>{try{u&&u();}catch(e){}});Room.unsubs=[];Room.code=null;Room.meta=null;
+  if(FB&&code){
+    try{
+      await FB.remove(roomRef(code,'players/'+FB.uid));
+      await FB.remove(roomRef(code,'states/'+FB.uid));
+      const s=await FB.get(roomRef(code,'players'));
+      if(!s.exists())await FB.remove(FB.ref(FB.db,'rooms/'+code));
+    }catch(e){}
+  }
+  Net.mode='solo';
+  $('roomPanel').classList.add('hidden');
+  toMenu();
+}
+function createRemoteCar(id,name,carIdx,colorIdx){
+  const c=newCar(false,CARS[carIdx]||CARS[0],COLORS[colorIdx]??COLORS[0],name);
+  c.isRemote=true;c.id=id;scene.add(c.mesh);cars.push(c);return c;
+}
 
 /* ================= 場景 ================= */
 const canvas=document.getElementById('game');
@@ -167,6 +319,8 @@ function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=i
 addEventListener('resize',resize);resize();
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),new THREE.MeshLambertMaterial({color:0x4c9a45}));
 ground.rotation.x=-Math.PI/2;scene.add(ground);
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 
 /* ================= 賽道建立 ================= */
 let P=[],Tn=[],Nn=[],spacing=1,trackGroup=null,curT=TRACKS[0],W=24,curMap=0;
@@ -297,6 +451,12 @@ function extrudeProfile(pts,width,mat,bevel=0.06){
   g.translate(0,0,-depth/2);g.rotateY(-Math.PI/2);
   return new THREE.Mesh(g,mat);
 }
+function nameTag(text){
+  const cv=document.createElement('canvas');cv.width=256;cv.height=64;const g=cv.getContext('2d');
+  g.fillStyle='rgba(0,0,0,.55)';g.fillRect(0,0,256,64);g.fillStyle='#fff';g.font='bold 34px sans-serif';g.textAlign='center';g.fillText(text,128,44);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthTest:false,transparent:true}));
+  s.scale.set(6,1.5,1);s.position.y=3.6;s.renderOrder=10;return s;
+}
 function makeCarMesh(colorHex,def){
   const g=new THREE.Group(),inner=new THREE.Group();g.add(inner);
   const body=new THREE.MeshStandardMaterial({color:colorHex,metalness:0.3,roughness:0.35});
@@ -364,7 +524,7 @@ function makeCarMesh(colorHex,def){
     box(2.3,0.06,0.45,M.carbon,0,0.4,2.3);
     wheels(0.48,0.5,1.0,1.45);glow();
   }
-  else{ // super
+  else{
     add(extrudeProfile([[-2.4,0.38],[-2.4,0.85],[-1.4,0.95],[0.2,0.9],[1.4,0.68],[2.4,0.5],[2.4,0.38]],2.2,body,0.07));
     add(extrudeProfile([[-1.1,0.9],[-0.5,1.3],[0.6,1.28],[1.3,0.78]],1.55,M.glass,0.05));
     for(const s of[-1,1]){
@@ -409,9 +569,11 @@ function updateParts(dt){
 
 /* ================= 車輛 ================= */
 function newCar(isPlayer,def,colorHex,name){
-  return {isPlayer,name,def,stats:def,mesh:makeCarMesh(colorHex,def),
+  const mesh=makeCarMesh(colorHex,def);
+  if(!isPlayer)mesh.add(nameTag(name));
+  return {isPlayer,name,def,stats:def,mesh,
     x:0,z:0,a:0,vx:0,vz:0,vF:0,vR:0,drifting:false,driftDir:1,driftTime:0,nitro:0,nitroOn:false,boostT:0,
-    idx:0,prevIdx:0,lap:-1,dist:0,offroad:false,finished:false,finishTime:0,skill:1,lane:0,lapStart:0};
+    idx:0,prevIdx:0,lap:-1,dist:0,offroad:false,finished:false,finishTime:0,skill:1,lane:0,lapStart:0,slot:0};
 }
 let player=null,ais=[],cars=[];
 let state='menu',raceT=0,countT=0,diff=0.97,lastLap=null,bestThisRace=null,camA=0;
@@ -439,6 +601,11 @@ function updateTrack(c){
   if(c.prevIdx>N*0.75&&c.idx<N*0.25){c.lap++;onLap(c);}
   else if(c.prevIdx<N*0.25&&c.idx>N*0.75){c.lap--;}
 }
+function afterFinish(){
+  if(Net.mode!=='online'){setTimeout(showResult,1500);return;}
+  let n=0;
+  const iv=setInterval(()=>{n++;if(cars.every(c=>c.finished)||n>40){clearInterval(iv);showResult();}},500);
+}
 function onLap(c){
   if(c.lap>=1&&c.isPlayer){
     const t=raceT-c.lapStart;lastLap=t;
@@ -447,7 +614,7 @@ function onLap(c){
     if(b===null||t<b){save.bests[curMap]=t;toast('單圈新紀錄!');doSave();}
   }
   c.lapStart=raceT;
-  if(c.lap>=TOTAL_LAPS&&!c.finished){c.finished=true;c.finishTime=raceT;if(c.isPlayer)setTimeout(showResult,1500);}
+  if(c.lap>=TOTAL_LAPS&&!c.finished){c.finished=true;c.finishTime=raceT;if(c.isPlayer)afterFinish();}
 }
 function endDrift(c){
   if(c.drifting&&c.driftTime>0.7){c.boostT=Math.min(1.5,0.4+c.driftTime*0.35);if(c.isPlayer)toast('漂移加速!');}
@@ -494,12 +661,22 @@ function stepRemote(c,dt){
   c.x+=(s.x-c.x)*k;c.z+=(s.z-c.z)*k;
   let da=s.a-c.a;da=((da+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;c.a+=da*k;
   c.vF=s.vF;c.drifting=s.drifting;c.driftDir=s.driftDir;c.nitroOn=s.nitroOn;c.boostT=s.boostT;
+  c.lap=s.lap;c.idx=s.idx;c.finished=!!s.fin;c.finishTime=s.finT||0;
+}
+function placeCar(c,s){
+  const dist=(Math.floor(s/2)+1)*11,lane=(s%2?5:-5);
+  const i0=(N-Math.round(dist/spacing)+N)%N,p=P[i0],n=Nn[i0],t=Tn[i0];
+  c.x=p.x+n.x*lane;c.z=p.z+n.z*lane;c.a=Math.atan2(t.x,t.z);
+  c.vx=c.vz=c.vF=c.vR=0;c.idx=c.prevIdx=i0;c.lap=-1;c.finished=false;c.finishTime=0;
+  c.drifting=false;c.nitroOn=false;c.boostT=0;c.target=null;
 }
 
 /* ================= 輸入 ================= */
 const keys={},touch={l:false,r:false,b:false,d:false,n:false};
 let touchOn=matchMedia('(pointer:coarse)').matches;
-addEventListener('keydown',e=>{keys[e.code]=true;
+addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT')return;
+  keys[e.code]=true;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyR'&&(state==='race'||state==='countdown')&&Net.mode==='solo')startRace();});
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -533,11 +710,12 @@ function drawThumb(cv,ti){
   const cu=new THREE.CatmullRomCurve3(TRACKS[ti].ctrl.map(([x,z])=>new THREE.Vector3(x,0,z)),true,'centripetal').getPoints(120);
   let a=1e9,b=-1e9,c=1e9,d=-1e9;cu.forEach(p=>{a=Math.min(a,p.x);b=Math.max(b,p.x);c=Math.min(c,p.z);d=Math.max(d,p.z);});
   const sc=120/Math.max(b-a,d-c),g=cv.getContext('2d');
-  g.clearRect(0,0,cv.width,cv.height);g.strokeStyle='#' + TRACKS[ti].th.curbB.toString(16).padStart(6,'0');g.lineWidth=5;g.lineJoin='round';g.beginPath();
+  g.clearRect(0,0,cv.width,cv.height);g.strokeStyle='#'+TRACKS[ti].th.curbB.toString(16).padStart(6,'0');g.lineWidth=5;g.lineJoin='round';g.beginPath();
   cu.forEach((p,i)=>{const X=15+(p.x-a)*sc,Y=15+(p.z-c)*sc;i?g.lineTo(X,Y):g.moveTo(X,Y);});g.closePath();g.stroke();
 }
 function renderMenu(){
   $('coins').textContent=save.coins;$('best').textContent=fmt(bestOf(save.map));
+  if(!$('olName').value)$('olName').value=save.name||'';
   $('maps').innerHTML=TRACKS.map((t,i)=>`<div class="card mapcard ${save.map===i?'sel':''}" data-i="${i}">
     <canvas width="150" height="150"></canvas>
     <b>${t.name}</b><div class="tag">${'★'.repeat(t.stars)}${'☆'.repeat(3-t.stars)}</div>
@@ -564,37 +742,48 @@ function renderMenu(){
   $('colors').innerHTML=COLORS.map((c,i)=>`<div class="sw ${save.color===i?'sel':''}" data-i="${i}" style="background:#${c.toString(16).padStart(6,'0')}"></div>`).join('');
   document.querySelectorAll('.sw').forEach(el=>el.onclick=()=>{save.color=+el.dataset.i;doSave();buildCars();ais.forEach(a=>a.mesh.visible=false);renderMenu();});
 }
+$('roomMap').innerHTML=TRACKS.map((t,i)=>`<option value="${i}">${t.name}</option>`).join('');
+$('roomMap').onchange=e=>{if(Room.code&&Room.meta&&Room.meta.host===FB.uid)FB.update(roomRef(Room.code,'meta'),{map:+e.target.value});};
+$('roomLaps').onchange=e=>{if(Room.code&&Room.meta&&Room.meta.host===FB.uid)FB.update(roomRef(Room.code,'meta'),{laps:+e.target.value});};
+$('roomStart').onclick=()=>{initAudio();ac&&ac.resume&&ac.resume();hostStart();};
+$('roomLeave').onclick=leaveRoom;
+$('createBtn').onclick=()=>{initAudio();createRoom();};
+$('joinBtn').onclick=()=>{initAudio();joinRoom();};
 $('touchChk').checked=touchOn;
 $('touchChk').onchange=e=>{touchOn=e.target.checked;};
 $('mute').onchange=e=>{muted=e.target.checked;};
 $('startBtn').onclick=()=>{
   initAudio();ac&&ac.resume&&ac.resume();
   diff=+$('diff').value;TOTAL_LAPS=+$('laps').value;
-  raceConfig={mapIndex:save.map,laps:TOTAL_LAPS,seed:Date.now()%100000};
   Net.mode='solo';startRace();
 };
-$('againBtn').onclick=()=>startRace();
-$('garageBtn').onclick=toMenu;
-$('bMenu').onclick=toMenu;
+$('againBtn').onclick=()=>{Net.mode==='online'?backToRoom():startRace();};
+$('garageBtn').onclick=()=>{Net.mode==='online'?leaveRoom():toMenu();};
+$('bMenu').onclick=()=>{if(Net.mode==='online'){if(confirm('要離開線上房間嗎?'))leaveRoom();}else toMenu();};
 
 function toMenu(){
   state='menu';buildCars();
   ais.forEach(a=>a.mesh.visible=false);
-  $('menu').classList.remove('hidden');$('result').classList.add('hidden');
+  $('menu').classList.remove('hidden');$('result').classList.add('hidden');$('roomPanel').classList.add('hidden');
   $('hud').classList.add('hidden');$('touch').classList.add('hidden');renderMenu();
 }
 function startRace(){
   buildCars();
-  $('menu').classList.add('hidden');$('result').classList.add('hidden');$('hud').classList.remove('hidden');
+  $('menu').classList.add('hidden');$('result').classList.add('hidden');$('roomPanel').classList.add('hidden');
+  $('hud').classList.remove('hidden');
   $('touch').classList.toggle('hidden',!touchOn);
-  const slots=[2,0,1,3];
-  cars.forEach((c,k)=>{
-    const s=slots[k],dist=(Math.floor(s/2)+1)*11,lane=(s%2?5:-5);
-    const i0=(N-Math.round(dist/spacing)+N)%N,p=P[i0],n=Nn[i0],t=Tn[i0];
-    c.x=p.x+n.x*lane;c.z=p.z+n.z*lane;c.a=Math.atan2(t.x,t.z);
-    c.vx=c.vz=c.vF=c.vR=0;c.idx=c.prevIdx=i0;c.lap=-1;c.nitro=c.isPlayer?30:20;c.finished=false;
-    c.mesh.visible=true;
-    if(!c.isPlayer){c.skill=diff*(0.97+Math.random()*0.06);c.lane=(Math.random()-.5)*10;}
+  if(Net.mode==='online'){
+    ais.forEach(a=>scene.remove(a.mesh));ais=[];cars=[player];
+    sortedPlayers().forEach(([uid,p],i)=>{
+      if(uid===FB.uid)player.slot=i;
+      else{const rc=createRemoteCar(uid,p.name,p.car,p.color);rc.slot=i;}
+    });
+  }else{
+    const slots=[2,0,1,3];cars.forEach((c,k)=>c.slot=slots[k]);
+  }
+  cars.forEach(c=>{
+    placeCar(c,c.slot);c.nitro=c.isPlayer?30:20;c.mesh.visible=true;
+    if(!c.isPlayer&&!c.isRemote){c.skill=diff*(0.97+Math.random()*0.06);c.lane=(Math.random()-.5)*10;}
   });
   state='countdown';countT=3.2;raceT=0;lastLap=null;bestThisRace=null;camA=player.a;
 }
@@ -610,8 +799,11 @@ function showResult(){
   const r=rankList(),rank=r.indexOf(player)+1;
   const reward=([200,130,80,50][rank-1]||30)+(bestThisRace?20:0);
   save.coins+=reward;doSave();
+  const online=Net.mode==='online';
+  $('againBtn').textContent=online?'回房間':'再來一次';
+  $('garageBtn').textContent=online?'離開房間':'回大廳';
   $('resBody').innerHTML=`<h2>${curT.name}　你的名次:第 ${rank} 名</h2>
-   <table><tr><th>名次</th><th>車手</th><th>成績</th></tr>${r.map((c,i)=>`<tr><td>${i+1}</td><td>${c.name}</td><td>${c.finished?fmt(c.finishTime):'未完賽'}</td></tr>`).join('')}</table>
+   <table><tr><th>名次</th><th>車手</th><th>成績</th></tr>${r.map((c,i)=>`<tr><td>${i+1}</td><td>${esc(c.name)}</td><td>${c.finished?fmt(c.finishTime):'未完賽'}</td></tr>`).join('')}</table>
    <div>本場最佳單圈:${fmt(bestThisRace)}　此地圖最佳:${fmt(bestOf(curMap))}</div>
    <div>獲得金幣:+${reward} 💰(現有 ${save.coins})</div>`;
   $('hud').classList.add('hidden');$('touch').classList.add('hidden');$('result').classList.remove('hidden');
@@ -638,9 +830,10 @@ function frame(now){
     renderer.render(scene,camera);return;
   }
   if(state==='countdown'){
-    countT-=dt;
-    $('count').textContent=countT>0.2?Math.ceil(countT-0.2):'GO!';
-    if(countT<=0){state='race';$('count').textContent='';player.lapStart=0;}
+    if(Net.mode==='online'&&FB&&Room.startAt)countT=(Room.startAt-(Date.now()+FB.offset))/1000;
+    else countT-=dt;
+    $('count').textContent=countT>0.2?Math.min(3,Math.ceil(countT-0.2)):'GO!';
+    if(countT<=0){state='race';$('count').textContent='';player.lapStart=0;raceT=0;}
   }
   if(state==='race'||state==='finished')raceT+=dt;
   const idle={steer:0,throttle:0,brake:false,drift:false,nitro:false};
@@ -659,13 +852,16 @@ function frame(now){
       a.x-=nx*o;a.z-=nz*o;b.x+=nx*o;b.z+=nz*o;
       a.vx*=0.98;a.vz*=0.98;b.vx*=0.98;b.vz*=0.98;}
   }
-  if(Net.mode==='online'){netT+=dt;if(netT>0.05){netT=0;Net.send('state',getSnapshot(player));}}
+  if(Net.mode==='online'&&FB){
+    netT+=dt;
+    if(netT>0.07){netT=0;Net.send('state',getSnapshot(player));}
+  }
   for(const c of cars){
     const m=c.mesh;m.position.set(c.x,0,c.z);m.rotation.y=c.a;
     const u=m.userData;
     u.inner.rotation.z=THREE.MathUtils.lerp(u.inner.rotation.z,c.drifting?-c.driftDir*0.12:0,0.2);
     u.inner.rotation.y=THREE.MathUtils.lerp(u.inner.rotation.y,c.drifting?c.driftDir*0.25:0,0.2);
-    u.flame.visible=c.nitroOn||c.boostT>0;
+    u.flame.visible=!!(c.nitroOn||c.boostT>0);
     if(u.flame.visible)u.flame.scale.setScalar(0.8+Math.random()*0.5);
     if((c.drifting||u.flame.visible)&&(c.isPlayer||Math.random()<0.3)){
       const fx=Math.sin(c.a),fz=Math.cos(c.a);

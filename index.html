@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>極速漂移 Racing</title>
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Microsoft JhengHei",sans-serif;color:#fff}
+canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hidden{display:none!important}
+#menu,#result{position:fixed;inset:0;overflow:auto;padding:16px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.2) 40%,rgba(0,0,0,.75))}
+h1{margin:4px 0;font-size:clamp(26px,5vw,44px);text-shadow:0 0 12px #0af;letter-spacing:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+.card{background:rgba(20,30,50,.85);border:2px solid #345;border-radius:12px;padding:10px;width:170px;cursor:pointer}
+.card.sel{border-color:#0cf;box-shadow:0 0 12px #0cf}
+.card.lock{opacity:.75}
+.bar{height:6px;background:#234;border-radius:3px;margin:3px 0 6px}
+.bar i{display:block;height:100%;background:#0cf;border-radius:3px}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid #fff3;cursor:pointer}
+.sw.sel{border-color:#fff}
+button,select{font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#0aa6e8;color:#fff;font-weight:bold;cursor:pointer}
+button.big{font-size:22px;padding:12px 40px;background:#ff7a00}
+select{background:#234}
+#hud{position:fixed;inset:0;pointer-events:none}
+#hud .tl{position:absolute;left:12px;top:10px;font-size:clamp(16px,3vw,24px);font-weight:bold;text-shadow:0 2px 4px #000;line-height:1.5}
+#mini{position:absolute;right:10px;top:10px;width:130px;height:130px;background:#0006;border-radius:10px}
+#speedBox{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);text-align:center;text-shadow:0 2px 4px #000}
+#spd{font-size:clamp(34px,7vw,56px);font-weight:bold}
+#nbar{width:min(300px,60vw);height:14px;background:#0008;border:2px solid #fff;border-radius:8px;overflow:hidden;margin:0 auto}
+#nbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#08f,#0ff)}
+#toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-size:clamp(26px,6vw,46px);font-weight:bold;color:#ffe14d;text-shadow:0 0 10px #f80;opacity:0;transition:opacity .3s}
+#count{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);font-size:clamp(70px,16vw,140px);font-weight:bold;text-shadow:0 0 20px #0af}
+#touch{position:fixed;inset:0;pointer-events:none}
+#touch div{position:absolute;pointer-events:auto;touch-action:none;background:#fff3;border:3px solid #fff8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px}
+#bL,#bR{width:84px;height:84px;bottom:18px;font-size:34px!important}
+#bL{left:14px}#bR{left:112px}
+#bN{right:14px;bottom:110px;width:80px;height:80px;background:#08f5!important}
+#bD{right:104px;bottom:20px;width:84px;height:84px;background:#f805!important}
+#bB{right:14px;bottom:20px;width:76px;height:76px}
+#bMenu{position:absolute;left:12px;bottom:12px;pointer-events:auto;padding:4px 10px;font-size:12px;background:#0006}
+table{border-collapse:collapse;margin:10px 0}td,th{padding:6px 14px;border-bottom:1px solid #fff3}
+</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="menu">
+  <h1>🏁 極速漂移 Racing</h1>
+  <div class="row">💰 金幣:<b id="coins">0</b>　🏆 最佳單圈:<b id="best">--</b></div>
+  <div>選擇賽車(點一下選用,未擁有的點一下購買)</div>
+  <div class="row" id="cars"></div>
+  <div>車身顏色</div>
+  <div class="row" id="colors"></div>
+  <div class="row">
+    難度:<select id="diff"><option value="0.88">簡單</option><option value="0.97" selected>普通</option><option value="1.06">困難</option></select>
+    <label><input type="checkbox" id="touchChk"> 顯示觸控按鈕</label>
+    <label><input type="checkbox" id="mute"> 靜音</label>
+  </div>
+  <div class="row"><button class="big" id="startBtn">開始比賽</button></div>
+  <div style="font-size:14px;opacity:.85;line-height:1.6">電腦:W/S 油門煞車、A/D 轉向、Shift 漂移、Space 氮氣、R 重來<br>手機:左下轉向,右下煞車、漂移、氮氣(自動油門)</div>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="tl"><div id="hPos"></div><div id="hLap"></div><div id="hTime"></div><div id="hLast" style="font-size:.7em"></div></div>
+  <canvas id="mini" width="130" height="130"></canvas>
+  <div id="speedBox"><div id="spd">0</div><div style="font-size:12px">km/h</div><div id="nbar"><i></i></div></div>
+  <div id="toast"></div>
+  <div id="count"></div>
+  <button id="bMenu">回車庫</button>
+</div>
+
+<div id="touch" class="hidden">
+  <div id="bL">◀</div><div id="bR">▶</div>
+  <div id="bN">氮氣</div><div id="bD">漂移</div><div id="bB">煞車</div>
+</div>
+
+<div id="result" class="hidden">
+  <h1>比賽結束</h1>
+  <div id="resBody"></div>
+  <div class="row"><button class="big" id="againBtn">再來一次</button><button id="garageBtn">回車庫</button></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ========== 存檔 ========== */
+const KEY='speedgame_v1';
+let save={coins:500,owned:[0],sel:0,color:0,best:null};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s)save=Object.assign(save,s);}catch(e){}
+const doSave=()=>{try{localStorage.setItem(KEY,JSON.stringify(save));}catch(e){}};
+
+/* ========== 資料 ========== */
+const TOTAL_LAPS=3, W=24;
+const CARS=[
+ {name:'新手小跑',price:0,   top:56,acc:30,handle:1.00,nitro:1.0,len:4.2,wing:false},
+ {name:'街頭閃電',price:300, top:62,acc:34,handle:1.05,nitro:1.0,len:4.4,wing:false},
+ {name:'漂移之王',price:600, top:60,acc:32,handle:1.25,nitro:1.1,len:4.2,wing:true},
+ {name:'極速幽靈',price:1000,top:70,acc:36,handle:1.00,nitro:1.2,len:4.8,wing:true}
+];
+const COLORS=[0xe53935,0x1e88e5,0xfdd835,0x43a047,0xff7a00,0x8e24aa,0xeeeeee,0x222222];
+const AI_NAMES=['小明','阿凱','Lisa'];
+const AI_COLORS=[0x43a047,0x8e24aa,0xeeeeee];
+
+/* ========== 場景 ========== */
+const canvas=document.getElementById('game');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8ecdf5);
+scene.fog=new THREE.Fog(0x8ecdf5,150,600);
+const camera=new THREE.PerspectiveCamera(70,1,0.5,1500);
+scene.add(new THREE.HemisphereLight(0xffffff,0x557744,1.0));
+const sun=new THREE.DirectionalLight(0xffffff,1.1);sun.position.set(100,200,80);scene.add(sun);
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(3000,3000),new THREE.MeshLambertMaterial({color:0x4c9a45}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
+
+/* ========== 賽道 ========== */
+const ctrl=[[0,-200],[150,-210],[260,-120],[230,20],[120,60],[130,160],[20,230],[-130,200],[-240,100],[-220,-40],[-120,-90],[-150,-170]]
+  .map(([x,z])=>new THREE.Vector3(x,0,z));
+const curve=new THREE.CatmullRomCurve3(ctrl,true,'centripetal');
+const N=500;
+const P=curve.getSpacedPoints(N).slice(0,N);
+const Tn=P.map((p,i)=>{const q=P[(i+1)%N];return new THREE.Vector3(q.x-p.x,0,q.z-p.z).normalize();});
+const Nn=Tn.map(t=>new THREE.Vector3(-t.z,0,t.x));
+let trackLen=0;for(let i=0;i<N;i++)trackLen+=P[i].distanceTo(P[(i+1)%N]);
+const spacing=trackLen/N;
+
+function ribbon(o1,o2,y,pick){
+  const pos=[],col=[],idx=[];let v=0;
+  for(let i=0;i<N;i++){
+    const c=pick(i);if(!c)continue;const j=(i+1)%N;
+    for(const [k,o] of [[i,o1],[i,o2],[j,o1],[j,o2]]){
+      pos.push(P[k].x+Nn[k].x*o,y,P[k].z+Nn[k].z*o);col.push(c.r,c.g,c.b);
+    }
+    idx.push(v,v+1,v+2,v+1,v+3,v+2);v+=4;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}));
+  scene.add(m);
+}
+const cRoad=new THREE.Color(0x3a3d46),cRed=new THREE.Color(0xdd2222),cWhite=new THREE.Color(0xffffff),cYel=new THREE.Color(0xffd400);
+ribbon(-W/2,W/2,0.05,()=>cRoad);
+ribbon(W/2,W/2+1.6,0.07,i=>(Math.floor(i/4)%2?cRed:cWhite));
+ribbon(-W/2-1.6,-W/2,0.07,i=>(Math.floor(i/4)%2?cRed:cWhite));
+ribbon(-0.3,0.3,0.08,i=>(i%8<4?cYel:null));
+ribbon(-W/2,W/2,0.09,i=>((i<2||i>N-1)?cWhite:null));
+
+const trunkG=new THREE.CylinderGeometry(0.6,0.8,4,6),leafG=new THREE.ConeGeometry(3.2,9,7);
+const trunkM=new THREE.MeshLambertMaterial({color:0x6b4423}),leafM=new THREE.MeshLambertMaterial({color:0x1f6b2e});
+for(let n=0;n<220;n++){
+  const x=(Math.random()-.5)*900,z=(Math.random()-.5)*900;
+  let ok=true;for(let i=0;i<N;i+=5){const dx=x-P[i].x,dz=z-P[i].z;if(dx*dx+dz*dz<35*35){ok=false;break;}}
+  if(!ok)continue;
+  const t=new THREE.Mesh(trunkG,trunkM);t.position.set(x,2,z);
+  const l=new THREE.Mesh(leafG,leafM);l.position.set(x,8,z);
+  scene.add(t,l);
+}
+
+/* ========== 賽車模型 ========== */
+function makeCarMesh(colorHex,def){
+  const g=new THREE.Group(),inner=new THREE.Group();g.add(inner);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,def.len),new THREE.MeshLambertMaterial({color:colorHex}));
+  body.position.y=0.8;inner.add(body);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.6,def.len*0.4),new THREE.MeshLambertMaterial({color:0x223344}));
+  cab.position.set(0,1.4,-0.2);inner.add(cab);
+  const wg=new THREE.CylinderGeometry(0.5,0.5,0.4,12),wm=new THREE.MeshLambertMaterial({color:0x111111});
+  for(const sx of[-1.1,1.1])for(const sz of[-def.len*0.32,def.len*0.32]){
+    const w=new THREE.Mesh(wg,wm);w.rotation.z=Math.PI/2;w.position.set(sx,0.5,sz);inner.add(w);
+  }
+  if(def.wing){
+    const wing=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.12,0.7),new THREE.MeshLambertMaterial({color:0x111111}));
+    wing.position.set(0,1.7,-def.len/2+0.3);inner.add(wing);
+    for(const sx of[-0.8,0.8]){const s=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.1),wm);s.position.set(sx,1.45,-def.len/2+0.3);inner.add(s);}
+  }
+  const flame=new THREE.Mesh(new THREE.ConeGeometry(0.5,2.2,8),new THREE.MeshBasicMaterial({color:0x33ccff}));
+  flame.rotation.x=-Math.PI/2;flame.position.set(0,0.9,-def.len/2-1.1);flame.visible=false;inner.add(flame);
+  g.userData={inner,flame};
+  return g;
+}
+
+/* ========== 粒子 ========== */
+const parts=[];
+const pGeo=new THREE.BoxGeometry(0.6,0.6,0.6);
+for(let i=0;i<80;i++){
+  const m=new THREE.Mesh(pGeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true}));
+  m.visible=false;scene.add(m);parts.push({m,life:0,vy:0});
+}
+let pI=0;
+function spawn(x,y,z,color,vy=1){
+  const p=parts[pI++%parts.length];p.m.position.set(x,y,z);p.m.material.color.setHex(color);
+  p.m.visible=true;p.life=0.5;p.vy=vy;p.m.scale.setScalar(1);
+}
+function updateParts(dt){
+  for(const p of parts){if(!p.life)continue;p.life-=dt;
+    if(p.life<=0){p.life=0;p.m.visible=false;continue;}
+    p.m.position.y+=p.vy*dt;p.m.material.opacity=p.life*1.6;p.m.scale.setScalar(0.6+(0.5-p.life)*2);}
+}
+
+/* ========== 車輛狀態 ========== */
+function newCar(isPlayer,def,colorHex,name){
+  return {isPlayer,name,def,stats:def,mesh:makeCarMesh(colorHex,def),
+    x:0,z:0,a:0,vx:0,vz:0,vF:0,vR:0,drifting:false,driftDir:1,driftTime:0,nitro:0,nitroOn:false,boostT:0,
+    idx:0,prevIdx:0,lap:-1,dist:0,offroad:false,finished:false,finishTime:0,skill:1,lane:0,lapStart:0};
+}
+let player=null,ais=[],cars=[];
+let state='menu',raceT=0,countT=0,diff=0.97,lastLap=null,bestThisRace=null,camA=0;
+
+function buildCars(){
+  if(player)scene.remove(player.mesh);
+  ais.forEach(a=>scene.remove(a.mesh));
+  player=newCar(true,CARS[save.sel],COLORS[save.color],'你');
+  ais=AI_NAMES.map((n,i)=>newCar(false,CARS[Math.min(3,i+1)],AI_COLORS[i],n));
+  cars=[player,...ais];
+  cars.forEach(c=>scene.add(c.mesh));
+}
+function updateTrack(c){
+  let best=1e18,bi=c.idx;
+  for(let k=-25;k<=25;k++){const i=(c.idx+k+N)%N;const dx=c.x-P[i].x,dz=c.z-P[i].z,d=dx*dx+dz*dz;if(d<best){best=d;bi=i;}}
+  c.prevIdx=c.idx;c.idx=bi;c.dist=Math.sqrt(best);
+  c.offroad=c.dist>W/2+1.6;
+  if(c.dist>W/2+14){
+    const nx=(c.x-P[bi].x)/c.dist,nz=(c.z-P[bi].z)/c.dist,lim=W/2+14;
+    c.x=P[bi].x+nx*lim;c.z=P[bi].z+nz*lim;
+    const vn=c.vx*nx+c.vz*nz;if(vn>0){c.vx-=nx*vn*1.4;c.vz-=nz*vn*1.4;}
+    c.vx*=0.97;c.vz*=0.97;
+  }
+  if(c.prevIdx>N*0.75&&c.idx<N*0.25){c.lap++;onLap(c);}
+  else if(c.prevIdx<N*0.25&&c.idx>N*0.75){c.lap--;}
+}
+function onLap(c){
+  if(c.lap>=1&&c.isPlayer){
+    const t=raceT-c.lapStart;lastLap=t;
+    if(bestThisRace===null||t<bestThisRace)bestThisRace=t;
+    if(save.best===null||t<save.best){save.best=t;toast('單圈新紀錄!');doSave();}
+  }
+  c.lapStart=raceT;
+  if(c.lap>=TOTAL_LAPS&&!c.finished){c.finished=true;c.finishTime=raceT;if(c.isPlayer)setTimeout(showResult,1500);}
+}
+function endDrift(c){
+  if(c.drifting&&c.driftTime>0.7){c.boostT=Math.min(1.5,0.4+c.driftTime*0.35);if(c.isPlayer)toast('漂移加速!');}
+  c.drifting=false;c.driftTime=0;
+}
+function stepCar(c,dt,inp){
+  const st=c.stats;
+  let vF=c.vx*Math.sin(c.a)+c.vz*Math.cos(c.a);
+  const spd=Math.abs(vF);
+  if(inp.drift&&!c.drifting&&vF>18&&Math.abs(inp.steer)>0.2){c.drifting=true;c.driftDir=Math.sign(inp.steer);c.driftTime=0;}
+  if(c.drifting&&(!inp.drift||vF<12))endDrift(c);
+  if(c.drifting){c.driftTime+=dt;c.nitro=Math.min(100,c.nitro+dt*26*st.nitro);}
+  if(inp.nitro&&c.nitro>0&&vF>5){c.nitroOn=true;c.nitro=Math.max(0,c.nitro-dt*32);}else c.nitroOn=false;
+  c.boostT=Math.max(0,c.boostT-dt);
+  const boost=c.nitroOn||c.boostT>0;
+  let eff=inp.steer,rate=1.9*st.handle/(1+spd/80);
+  if(c.drifting){eff=c.driftDir*(0.55+0.45*inp.steer*c.driftDir);rate*=1.35;}
+  c.a-=eff*rate*Math.min(spd/12,1)*(vF<0?-1:1)*dt;
+  const fx=Math.sin(c.a),fz=Math.cos(c.a),rx=-fz,rz=fx;
+  vF=c.vx*fx+c.vz*fz;let vR=c.vx*rx+c.vz*rz;
+  vR*=Math.exp(-(c.drifting?1.5:9)*dt);
+  const maxS=st.top*(boost?1.4:1)*(c.offroad?0.55:1);
+  if(inp.brake){vF-=(vF>0?70:20)*dt;if(vF<-15)vF=-15;}
+  else if(inp.throttle){if(vF<maxS)vF+=st.acc*(boost?2.4:1)*dt*(1.2-0.6*Math.max(vF,0)/maxS);}
+  else vF-=vF*0.5*dt;
+  if(vF>maxS)vF-=(vF-maxS)*2*dt;
+  c.vx=fx*vF+rx*vR;c.vz=fz*vF+rz*vR;
+  c.x+=c.vx*dt;c.z+=c.vz*dt;c.vF=vF;c.vR=vR;
+}
+function aiInput(c,dt){
+  const ti=(c.idx+14)%N,T=P[ti],n=Nn[ti];
+  const tx=T.x+n.x*c.lane,tz=T.z+n.z*c.lane;
+  let d=Math.atan2(tx-c.x,tz-c.z)-c.a;d=((d+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+  const steer=Math.max(-1,Math.min(1,-d*2.2));
+  const t1=Tn[c.idx],t2=Tn[(c.idx+35)%N];
+  const curv=Math.acos(Math.max(-1,Math.min(1,t1.x*t2.x+t1.z*t2.z)));
+  const target=c.stats.top*0.94*c.skill*(1-Math.min(curv/1.2,0.45));
+  c.nitro=Math.min(100,c.nitro+dt*6);
+  return {steer,throttle:c.vF<target?1:0,brake:c.vF>target*1.18,drift:false,nitro:curv<0.15&&c.nitro>50};
+}
+
+/* ========== 輸入 ========== */
+const keys={},touch={l:false,r:false,b:false,d:false,n:false};
+let touchOn=matchMedia('(pointer:coarse)').matches;
+addEventListener('keydown',e=>{keys[e.code]=true;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+  if(e.code==='KeyR'&&(state==='race'||state==='countdown'))startRace();});
+addEventListener('keyup',e=>{keys[e.code]=false;});
+for(const [id,k] of [['bL','l'],['bR','r'],['bB','b'],['bD','d'],['bN','n']]){
+  const el=document.getElementById(id);
+  el.addEventListener('pointerdown',e=>{touch[k]=true;el.setPointerCapture(e.pointerId);e.preventDefault();});
+  for(const ev of['pointerup','pointercancel','lostpointercapture'])el.addEventListener(ev,()=>{touch[k]=false;});
+}
+function playerInput(){
+  const L=keys.KeyA||keys.ArrowLeft||touch.l,R=keys.KeyD||keys.ArrowRight||touch.r;
+  return {steer:(R?1:0)-(L?1:0),
+    throttle:(keys.KeyW||keys.ArrowUp||touchOn)?1:0,
+    brake:!!(keys.KeyS||keys.ArrowDown||touch.b),
+    drift:!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyK||touch.d),
+    nitro:!!(keys.Space||keys.KeyN||keys.KeyJ||touch.n)};
+}
+
+/* ========== 聲音 ========== */
+let ac,osc,gain,muted=false;
+function initAudio(){if(ac)return;try{ac=new(window.AudioContext||window.webkitAudioContext)();osc=ac.createOscillator();osc.type='sawtooth';gain=ac.createGain();gain.gain.value=0;osc.connect(gain);gain.connect(ac.destination);osc.start();}catch(e){}}
+function updateAudio(){if(!osc)return;const on=(state==='race'||state==='countdown')&&!muted;
+  gain.gain.value=on?0.03:0;osc.frequency.value=50+Math.abs(player.vF)*3.2+(player.nitroOn?30:0);}
+
+/* ========== UI ========== */
+const $=id=>document.getElementById(id);
+const fmt=t=>{if(t==null)return'--';const m=Math.floor(t/60),s=t-m*60;return String(m).padStart(2,'0')+':'+s.toFixed(3).padStart(6,'0');};
+let toastTimer;
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.style.opacity=0,1000);}
+function bar(v,max){return `<div class="bar"><i style="width:${Math.min(100,v/max*100)}%"></i></div>`;}
+function renderMenu(){
+  $('coins').textContent=save.coins;$('best').textContent=fmt(save.best);
+  $('cars').innerHTML=CARS.map((c,i)=>{
+    const own=save.owned.includes(i);
+    return `<div class="card ${save.sel===i?'sel':''} ${own?'':'lock'}" data-i="${i}">
+      <b>${c.name}</b> ${own?'':'🔒 '+c.price+'💰'}
+      <div style="font-size:12px">極速</div>${bar(c.top,70)}
+      <div style="font-size:12px">加速</div>${bar(c.acc,36)}
+      <div style="font-size:12px">操控</div>${bar(c.handle,1.25)}
+      <div style="font-size:12px">氮氣</div>${bar(c.nitro,1.2)}</div>`;}).join('');
+  document.querySelectorAll('.card').forEach(el=>el.onclick=()=>{
+    const i=+el.dataset.i;
+    if(!save.owned.includes(i)){
+      if(save.coins>=CARS[i].price){save.coins-=CARS[i].price;save.owned.push(i);save.sel=i;}
+      else{alert('金幣不夠,先去比賽賺錢吧!');return;}
+    }else save.sel=i;
+    doSave();buildCars();renderMenu();});
+  $('colors').innerHTML=COLORS.map((c,i)=>`<div class="sw ${save.color===i?'sel':''}" data-i="${i}" style="background:#${c.toString(16).padStart(6,'0')}"></div>`).join('');
+  document.querySelectorAll('.sw').forEach(el=>el.onclick=()=>{save.color=+el.dataset.i;doSave();buildCars();renderMenu();});
+}
+$('touchChk').checked=touchOn;
+$('touchChk').onchange=e=>{touchOn=e.target.checked;};
+$('mute').onchange=e=>{muted=e.target.checked;};
+$('startBtn').onclick=()=>{initAudio();ac&&ac.resume&&ac.resume();diff=+$('diff').value;startRace();};
+$('againBtn').onclick=()=>startRace();
+$('garageBtn').onclick=toMenu;
+$('bMenu').onclick=toMenu;
+
+function toMenu(){
+  state='menu';buildCars();
+  ais.forEach(a=>a.mesh.visible=false);
+  $('menu').classList.remove('hidden');$('result').classList.add('hidden');
+  $('hud').classList.add('hidden');$('touch').classList.add('hidden');renderMenu();
+}
+function startRace(){
+  buildCars();
+  $('menu').classList.add('hidden');$('result').classList.add('hidden');$('hud').classList.remove('hidden');
+  $('touch').classList.toggle('hidden',!touchOn);
+  const slots=[2,0,1,3];
+  cars.forEach((c,k)=>{
+    const s=slots[k],dist=(Math.floor(s/2)+1)*11,lane=(s%2?5:-5);
+    const i0=(N-Math.round(dist/spacing)+N)%N,p=P[i0],n=Nn[i0],t=Tn[i0];
+    c.x=p.x+n.x*lane;c.z=p.z+n.z*lane;c.a=Math.atan2(t.x,t.z);
+    c.vx=c.vz=c.vF=c.vR=0;c.idx=c.prevIdx=i0;c.lap=-1;c.nitro=c.isPlayer?30:20;c.finished=false;
+    c.mesh.visible=true;
+    if(!c.isPlayer){c.skill=diff*(0.97+Math.random()*0.06);c.lane=(Math.random()-.5)*10;}
+  });
+  state='countdown';countT=3.2;raceT=0;lastLap=null;bestThisRace=null;camA=player.a;
+}
+function rankList(){
+  return [...cars].sort((a,b)=>{
+    if(a.finished&&b.finished)return a.finishTime-b.finishTime;
+    if(a.finished)return -1;if(b.finished)return 1;
+    return(b.lap*N+b.idx)-(a.lap*N+a.idx);});
+}
+function showResult(){
+  if(state==='finished'||state==='menu')return;
+  state='finished';
+  const r=rankList(),rank=r.indexOf(player)+1;
+  const reward=[200,130,80,50][rank-1]+(bestThisRace?20:0);
+  save.coins+=reward;doSave();
+  $('resBody').innerHTML=`<h2>你的名次:第 ${rank} 名</h2>
+   <table><tr><th>名次</th><th>車手</th><th>成績</th></tr>${r.map((c,i)=>`<tr><td>${i+1}</td><td>${c.name}</td><td>${c.finished?fmt(c.finishTime):'未完賽'}</td></tr>`).join('')}</table>
+   <div>本場最佳單圈:${fmt(bestThisRace)}　歷史最佳:${fmt(save.best)}</div>
+   <div>獲得金幣:+${reward} 💰(現有 ${save.coins})</div>`;
+  $('hud').classList.add('hidden');$('touch').classList.add('hidden');$('result').classList.remove('hidden');
+}
+
+/* ========== 小地圖 ========== */
+const mini=$('mini'),mctx=mini.getContext('2d');
+let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+P.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z);});
+const msc=110/Math.max(maxX-minX,maxZ-minZ);
+const mx=x=>10+(x-minX)*msc,mz=z=>10+(z-minZ)*msc;
+const trackImg=document.createElement('canvas');trackImg.width=trackImg.height=130;
+{const g=trackImg.getContext('2d');g.strokeStyle='#fff';g.lineWidth=4;g.beginPath();
+ P.forEach((p,i)=>i?g.lineTo(mx(p.x),mz(p.z)):g.moveTo(mx(p.x),mz(p.z)));g.closePath();g.stroke();}
+function drawMini(){
+  mctx.clearRect(0,0,130,130);mctx.drawImage(trackImg,0,0);
+  cars.forEach(c=>{mctx.fillStyle=c.isPlayer?'#ff3030':'#ffd400';mctx.beginPath();mctx.arc(mx(c.x),mz(c.z),c.isPlayer?5:3.5,0,7);mctx.fill();});
+}
+
+/* ========== 主迴圈 ========== */
+let last=performance.now(),menuAng=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(state==='menu'){
+    menuAng+=dt*0.5;const p=P[0];
+    player.mesh.position.set(p.x,0,p.z);player.mesh.rotation.y=0;
+    camera.position.set(p.x+Math.sin(menuAng)*9,3.8,p.z+Math.cos(menuAng)*9);
+    camera.lookAt(p.x,1,p.z);camera.fov=60;camera.updateProjectionMatrix();
+    renderer.render(scene,camera);return;
+  }
+  if(state==='countdown'){
+    countT-=dt;
+    $('count').textContent=countT>0.2?Math.ceil(countT-0.2):'GO!';
+    if(countT<=0){state='race';$('count').textContent='';player.lapStart=0;}
+  }
+  const racing=state==='race'||state==='finished';
+  if(racing)raceT+=dt;
+  if(state!=='menu'){
+    const idle={steer:0,throttle:0,brake:false,drift:false,nitro:false};
+    for(const c of cars){
+      let inp=idle;
+      if(state==='race'||state==='finished'){
+        inp=c.isPlayer?(c.finished?{steer:0,throttle:0,brake:true,drift:false,nitro:false}:playerInput()):aiInput(c,dt);
+      }
+      stepCar(c,dt,inp);updateTrack(c);
+    }
+    for(let i=0;i<cars.length;i++)for(let j=i+1;j<cars.length;j++){
+      const a=cars[i],b=cars[j],dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz);
+      if(d<3.4&&d>0.001){const o=(3.4-d)/2,nx=dx/d,nz=dz/d;
+        a.x-=nx*o;a.z-=nz*o;b.x+=nx*o;b.z+=nz*o;
+        a.vx*=0.98;a.vz*=0.98;b.vx*=0.98;b.vz*=0.98;}
+    }
+  }
+  for(const c of cars){
+    const m=c.mesh;m.position.set(c.x,0,c.z);m.rotation.y=c.a;
+    const u=m.userData;
+    u.inner.rotation.z=THREE.MathUtils.lerp(u.inner.rotation.z,c.drifting?-c.driftDir*0.12:0,0.2);
+    u.inner.rotation.y=THREE.MathUtils.lerp(u.inner.rotation.y,c.drifting?c.driftDir*0.25:0,0.2);
+    u.flame.visible=c.nitroOn||c.boostT>0;
+    if(u.flame.visible)u.flame.scale.setScalar(0.8+Math.random()*0.5);
+    if((c.drifting||u.flame.visible)&&(c.isPlayer||Math.random()<0.3)){
+      const fx=Math.sin(c.a),fz=Math.cos(c.a);
+      for(const s of[-0.9,0.9])spawn(c.x-fx*1.8-fz*s,0.4,c.z-fz*1.8+fx*s,u.flame.visible?0x33ccff:0xcccccc,u.flame.visible?0.3:1.2);
+    }
+  }
+  updateParts(dt);
+  // 鏡頭
+  let da=player.a-camA;da=((da+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+  camA+=da*(1-Math.exp(-6*dt));
+  const sp=Math.abs(player.vF),boost=player.nitroOn||player.boostT>0;
+  const dist=9+sp*0.05+(boost?2:0);
+  const tx=player.x-Math.sin(camA)*dist,tz=player.z-Math.cos(camA)*dist;
+  camera.position.set(tx,4.2+sp*0.01,tz);
+  camera.lookAt(player.x+Math.sin(camA)*8,1.2,player.z+Math.cos(camA)*8);
+  const fov=68+sp*0.25+(boost?12:0);
+  camera.fov+=(fov-camera.fov)*Math.min(1,dt*5);camera.updateProjectionMatrix();
+  // HUD
+  const r=rankList();
+  $('hPos').textContent=`名次 ${r.indexOf(player)+1}/${cars.length}`;
+  $('hLap').textContent=`圈數 ${Math.min(Math.max(player.lap+1,1),TOTAL_LAPS)}/${TOTAL_LAPS}`;
+  $('hTime').textContent='時間 '+fmt(raceT);
+  $('hLast').textContent=`上一圈 ${fmt(lastLap)}　最佳 ${fmt(save.best)}`;
+  $('spd').textContent=Math.round(Math.abs(player.vF)*3.2);
+  document.querySelector('#nbar i').style.width=player.nitro+'%';
+  drawMini();updateAudio();
+  renderer.render(scene,camera);
+}
+
+buildCars();toMenu();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

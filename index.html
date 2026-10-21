@@ -102,6 +102,15 @@ table{border-collapse:collapse;margin:10px 0}td,th{padding:6px 14px;border-botto
   <div id="toast"></div>
   <div id="count"></div>
   <button id="bMenu">回大廳</button>
+  <button id="bPause" style="position:absolute;right:150px;top:10px;pointer-events:auto;padding:6px 12px;font-size:18px;background:#0006">⏸</button>
+</div>
+
+<div id="pause" class="hidden" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+  <h1>⏸ 暫停</h1>
+  <div id="pauseNote" style="opacity:.85"></div>
+  <button class="big" id="pauseResume">繼續比賽 (ESC)</button>
+  <button id="pauseRestart">重新開始</button>
+  <button id="pauseQuit">回大廳</button>
 </div>
 
 <div id="touch" class="hidden">
@@ -676,10 +685,24 @@ const keys={},touch={l:false,r:false,b:false,d:false,n:false};
 let touchOn=matchMedia('(pointer:coarse)').matches;
 addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='INPUT')return;
+  if(e.code==='Escape'){e.preventDefault();setPause(!paused);return;}
+  if(paused)return;
   keys[e.code]=true;
   if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyR'&&(state==='race'||state==='countdown')&&Net.mode==='solo')startRace();});
 addEventListener('keyup',e=>{keys[e.code]=false;});
+let paused=false;
+function setPause(v){
+  if(v&&!(state==='race'||state==='countdown'))return;
+  paused=v;
+  $('pause').classList.toggle('hidden',!v);
+  $('pauseNote').textContent=Net.mode==='online'?'線上模式不會暫停比賽,其他玩家仍在行駛':'遊戲已暫停';
+  $('pauseRestart').style.display=Net.mode==='online'?'none':'';
+  for(const k in keys)keys[k]=false;
+  for(const k in touch)touch[k]=false;
+  if(typeof mouseNitro!=='undefined')mouseNitro=false;
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&Net.mode==='solo')setPause(true);});
 for(const [id,k] of [['bL','l'],['bR','r'],['bB','b'],['bD','d'],['bN','n']]){
   const el=document.getElementById(id);
   el.addEventListener('pointerdown',e=>{touch[k]=true;el.setPointerCapture(e.pointerId);e.preventDefault();});
@@ -693,6 +716,7 @@ addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===0)mouseN
 addEventListener('blur',()=>{mouseNitro=false;});
   
 function playerInput(){
+  if(paused)return {steer:0,throttle:0,brake:true,drift:false,nitro:false};
   const L=keys.KeyA||keys.ArrowLeft||touch.l,R=keys.KeyD||keys.ArrowRight||touch.r;
   return {steer:(R?1:0)-(L?1:0),
     throttle:(keys.KeyW||keys.ArrowUp||touchOn)?1:0,
@@ -767,7 +791,10 @@ $('startBtn').onclick=()=>{
 $('againBtn').onclick=()=>{Net.mode==='online'?backToRoom():startRace();};
 $('garageBtn').onclick=()=>{Net.mode==='online'?leaveRoom():toMenu();};
 $('bMenu').onclick=()=>{if(Net.mode==='online'){if(confirm('要離開線上房間嗎?'))leaveRoom();}else toMenu();};
-
+$('pauseResume').onclick=()=>setPause(false);
+$('pauseRestart').onclick=()=>{setPause(false);startRace();};
+$('pauseQuit').onclick=()=>{setPause(false);if(Net.mode==='online')leaveRoom();else toMenu();};
+$('bPause').onclick=()=>setPause(!paused);
 function toMenu(){
   state='menu';buildCars();
   ais.forEach(a=>a.mesh.visible=false);
@@ -828,6 +855,8 @@ let last=performance.now(),menuAng=0,netT=0;
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(paused&&state!=='race'&&state!=='countdown')setPause(false);
+  if(paused&&Net.mode==='solo'){if(gain)gain.gain.value=0;renderer.render(scene,camera);return;}
   if(state==='menu'){
     menuAng+=dt*0.5;const p=P[0];
     player.mesh.position.set(p.x,0,p.z);player.mesh.rotation.y=menuAng*0.3;

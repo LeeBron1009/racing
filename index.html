@@ -685,13 +685,20 @@ for(const [id,k] of [['bL','l'],['bR','r'],['bB','b'],['bD','d'],['bN','n']]){
   el.addEventListener('pointerdown',e=>{touch[k]=true;el.setPointerCapture(e.pointerId);e.preventDefault();});
   for(const ev of['pointerup','pointercancel','lostpointercapture'])el.addEventListener(ev,()=>{touch[k]=false;});
 }
+let mouseNitro=false;
+addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button===0&&e.target===canvas&&(state==='race'||state==='countdown'))mouseNitro=true;
+});
+addEventListener('pointerup',e=>{if(e.pointerType==='mouse'&&e.button===0)mouseNitro=false;});
+addEventListener('blur',()=>{mouseNitro=false;});
+  
 function playerInput(){
   const L=keys.KeyA||keys.ArrowLeft||touch.l,R=keys.KeyD||keys.ArrowRight||touch.r;
   return {steer:(R?1:0)-(L?1:0),
     throttle:(keys.KeyW||keys.ArrowUp||touchOn)?1:0,
     brake:!!(keys.KeyS||keys.ArrowDown||touch.b),
     drift:!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyK||touch.d),
-    nitro:!!(keys.Space||keys.KeyN||keys.KeyJ||touch.n)};
+    nitro:!!(keys.Space||keys.KeyN||keys.KeyJ||touch.n||mouseNitro)};
 }
 
 /* ================= 聲音 ================= */

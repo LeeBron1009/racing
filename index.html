@@ -751,7 +751,7 @@ function stepCar(c,dt,inp){
   if(inp.drift&&!c.drifting&&vF>18&&Math.abs(inp.steer)>0.2){c.drifting=true;c.driftDir=Math.sign(inp.steer);c.driftTime=0;}
   if(c.drifting&&(!inp.drift||vF<12))endDrift(c);
   if(c.drifting){c.driftTime+=dt;c.nitro=Math.min(100,c.nitro+dt*26*st.nitro);}
-  if(inp.nitro&&c.nitro>0&&vF>5){c.nitroOn=true;c.nitro=Math.max(0,c.nitro-dt*32);}else c.nitroOn=false;
+  if(inp.nitro&&c.nitro>0&&vF>5){c.nitroOn=true;c.nitro=Math.max(0,c.nitro-dt*32/Math.sqrt(st.nitro));}else c.nitroOn=false;
   c.boostT=Math.max(0,c.boostT-dt);
   const boost=c.nitroOn||c.boostT>0;
   let eff=inp.steer,rate=2.7*st.handle/(1+spd/130);
@@ -760,7 +760,7 @@ function stepCar(c,dt,inp){
   const fx=Math.sin(c.a),fz=Math.cos(c.a),rx=-fz,rz=fx;
   vF=c.vx*fx+c.vz*fz;let vR=c.vx*rx+c.vz*rz;
   vR*=Math.exp(-(c.drifting?1.5:9)*dt);
-  const maxS=st.top*(boost?1.4:1)*(c.offroad?0.55:1);
+  const maxS=st.top*(boost?1.4:1)*(c.offroad?(st.off||0.55):1);
   if(inp.brake){vF-=(vF>0?70:20)*dt;if(vF<-15)vF=-15;}
   else if(inp.throttle){if(vF<maxS)vF+=st.acc*(boost?2.4:1)*dt*(1.2-0.6*Math.max(vF,0)/maxS);}
   else vF-=vF*0.5*dt;
@@ -775,8 +775,8 @@ function aiInput(c,dt){
   const steer=Math.max(-1,Math.min(1,-d*2.2));
   const t1=Tn[c.idx],t2=Tn[(c.idx+35)%N];
   const curv=Math.acos(Math.max(-1,Math.min(1,t1.x*t2.x+t1.z*t2.z)));
-  const target=c.stats.top*0.94*c.skill*(1-Math.min(curv/1.2,0.45));
-  c.nitro=Math.min(100,c.nitro+dt*6);
+  const target=c.stats.top*1.0*c.skill*(1-Math.min(curv/1.2,0.45));
+  c.nitro=Math.min(100,c.nitro+dt*6*c.stats.nitro);
   return {steer,throttle:c.vF<target?1:0,brake:c.vF>target*1.18,drift:false,nitro:curv<0.15&&c.nitro>50};
 }
 function stepRemote(c,dt){
@@ -871,14 +871,15 @@ function renderMenu(){
     drawThumb(el.querySelector('canvas'),+el.dataset.i);
     el.onclick=()=>{save.map=+el.dataset.i;doSave();buildTrack(save.map);renderMenu();};
   });
-  $('cars').innerHTML=CARS.map((c,i)=>{
+    $('cars').innerHTML=CARS.map((c,i)=>{
     const own=save.owned.includes(i);
     return `<div class="card ${save.sel===i?'sel':''} ${own?'':'lock'}" data-i="${i}">
-      <b>${c.name}</b> ${own?'':'🔒 '+c.price+'💰'}<div class="tag">${c.tag}</div>
-      <div style="font-size:12px">極速</div>${bar(c.top,70)}
-      <div style="font-size:12px">加速</div>${bar(c.acc,36)}
-      <div style="font-size:12px">操控</div>${bar(c.handle,1.25)}
-      <div style="font-size:12px">氮氣</div>${bar(c.nitro,1.2)}</div>`;}).join('');
+      <b>${c.name}</b> ${own?(save.sel===i?'✅':''):'🔒 '+c.price+'💰'}<div class="tag">${c.tag}</div>
+      <div style="font-size:12px">極速</div>${bar(c.top-40,30)}
+      <div style="font-size:12px">加速</div>${bar(c.acc-20,26)}
+      <div style="font-size:12px">操控</div>${bar(c.handle-0.7,0.9)}
+      <div style="font-size:12px">氮氣</div>${bar(c.nitro-0.6,1.1)}
+      <div style="font-size:12px">越野</div>${bar(c.off,1)}</div>`;}).join('');
   document.querySelectorAll('#cars .card').forEach(el=>el.onclick=()=>{
     const i=+el.dataset.i;
     if(!save.owned.includes(i)){
@@ -957,15 +958,21 @@ function rankList(){
 }
 let rewardInfo='';
 function calcReward(rank){
-  const base=[100,65,40,25][rank-1]||15;
+  const base=[150,100,60,40][rank-1]||20;
   let dm,dn;
   if(Net.mode==='online'){dm=1.2;dn='多人';}
   else if(diff<0.9){dm=0.6;dn='簡單';}
   else if(diff<1.0){dm=1.0;dn='普通';}
   else{dm=1.8;dn='困難';}
   const sm=1+0.25*(curT.stars-1),lm=TOTAL_LAPS/3;
-  rewardInfo=`名次 ${base} × 難度(${dn}) ${dm} × 地圖星級 ${sm} × 圈數 ${lm.toFixed(2)} + 完賽 10`;
-  return Math.round(base*dm*sm*lm)+10;
+  rewardInfo=`名次 ${base} × 難度(${dn}) ${dm} × 地圖星級 ${sm} × 圈數 ${lm.toFixed(2)} + 完賽 20`;
+  let bonus=0;
+  save.cleared=save.cleared||{};
+  if(rank<=3&&!save.cleared[curMap]){
+    save.cleared[curMap]=1;bonus=150*curT.stars;
+    rewardInfo+=` + 首次通關獎勵 ${bonus}`;
+  }
+  return Math.round(base*dm*sm*lm)+20+bonus;
 }
 function showResult(){
   if(state==='finished'||state==='menu')return;

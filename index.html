@@ -951,11 +951,23 @@ function rankList(){
     if(a.finished)return -1;if(b.finished)return 1;
     return(b.lap*N+b.idx)-(a.lap*N+a.idx);});
 }
+let rewardInfo='';
+function calcReward(rank){
+  const base=[100,65,40,25][rank-1]||15;
+  let dm,dn;
+  if(Net.mode==='online'){dm=1.2;dn='多人';}
+  else if(diff<0.9){dm=0.6;dn='簡單';}
+  else if(diff<1.0){dm=1.0;dn='普通';}
+  else{dm=1.8;dn='困難';}
+  const sm=1+0.25*(curT.stars-1),lm=TOTAL_LAPS/3;
+  rewardInfo=`名次 ${base} × 難度(${dn}) ${dm} × 地圖星級 ${sm} × 圈數 ${lm.toFixed(2)} + 完賽 10`;
+  return Math.round(base*dm*sm*lm)+10;
+}
 function showResult(){
   if(state==='finished'||state==='menu')return;
   state='finished';
   const r=rankList(),rank=r.indexOf(player)+1;
-  const reward=([200,130,80,50][rank-1]||30)+(bestThisRace?20:0);
+  const reward=calcReward(rank);
   save.coins+=reward;doSave();
   const online=Net.mode==='online';
   $('againBtn').textContent=online?'回房間':'再來一次';

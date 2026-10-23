@@ -175,7 +175,19 @@ const TRACKS=[
   th:{sky:0xf2c98a,fogNear:150,fogFar:650,ground:0xd9b36c,road:0x4a4540,curbA:0xc0392b,curbB:0xf5e6c8,line:0xffffff,hemi:1.05,sun:1.2,decor:'desert'}},
  {name:'雪山盤道',desc:'積雪・窄路・連續彎',stars:2,W:20,
   ctrl:[[0,-180],[140,-200],[260,-120],[280,0],[200,80],[210,180],[110,250],[-20,200],[40,100],[-60,40],[-170,100],[-260,40],[-250,-80],[-140,-130]],
-  th:{sky:0xcfe3f2,fogNear:100,fogFar:520,ground:0xf2f6fa,road:0x50545c,curbA:0x2a6fdb,curbB:0xffffff,line:0xffffff,hemi:1.15,sun:0.9,decor:'snow'}}
+  th:{sky:0xcfe3f2,fogNear:100,fogFar:520,ground:0xf2f6fa,road:0x50545c,curbA:0x2a6fdb,curbB:0xffffff,line:0xffffff,hemi:1.15,sun:0.9,decor:'snow'}},
+ {name:'海岸高速',desc:'黃昏海岸・長直線・大彎',stars:2,W:22,
+  ctrl:[[-120,-165],[120,-150],[300,-170],[380,-90],[350,10],[250,40],[200,110],[290,170],[200,230],[40,200],[-60,150],[-140,210],[-260,230],[-370,150],[-380,40],[-340,-70],[-320,-150]],
+  th:{sky:0xffb88a,fogNear:180,fogFar:750,ground:0xe8d9a8,road:0x3d3f47,curbA:0x1e88e5,curbB:0xffffff,line:0xffffff,hemi:1.05,sun:1.0,decor:'coast'}},
+ {name:'楓葉蛇行',desc:'秋季山道・連續髮夾彎',stars:3,W:18,
+  ctrl:[[-150,-212],[0,-195],[150,-210],[250,-200],[295,-160],[250,-120],[150,-108],[0,-128],[-150,-112],[-250,-120],[-295,-80],[-250,-40],[-150,-52],[0,-32],[150,-48],[250,-40],[295,0],[250,40],[150,28],[0,48],[-150,32],[-255,40],[-345,0],[-355,-100],[-300,-200]],
+  th:{sky:0xe8955a,fogNear:90,fogFar:480,ground:0x6b5a2e,road:0x3b3a3c,curbA:0xe65100,curbB:0xffe0b2,line:0xffffff,hemi:1.0,sun:0.95,decor:'autumn'}},
+ {name:'火山熔岩',desc:'環繞火山・四瓣花形',stars:2,W:26,
+  ctrl:[[269,0],[284,92],[200,146],[109,150],[61,189],[0,269],[-92,284],[-146,200],[-150,109],[-189,61],[-269,0],[-284,-92],[-200,-146],[-109,-150],[-61,-189],[0,-269],[92,-284],[146,-200],[150,-109],[189,-61]],
+  th:{sky:0x3a0f0a,fogNear:100,fogFar:520,ground:0x1c1412,road:0x2c2c30,curbA:0xff3d00,curbB:0xffd180,line:0xffd400,hemi:0.8,sun:0.7,decor:'volcano'}},
+ {name:'星際螺旋',desc:'太空・超長螺旋・建議 2 圈',stars:3,W:20,
+  ctrl:[[141,244],[0,272],[-132,228],[-220,127],[-245,0],[-204,-118],[-113,-196],[0,-218],[104,-180],[172,-100],[190,0],[157,90],[86,149],[0,163],[-77,133],[-125,72],[-135,0],[-130,-20],[-112,-31],[-91,-26],[-81,-8],[-77,45],[-49,85],[0,108],[58,101],[109,63],[135,0],[125,-72],[77,-133],[0,-162],[-86,-149],[-157,-90],[-190,0],[-172,100],[-104,180],[0,218],[113,196],[204,118],[245,0],[251,-19],[272,-28],[293,-19],[300,0],[252,145]],
+  th:{sky:0x02030c,fogNear:200,fogFar:800,ground:0x0b0620,road:0x1a1d3a,curbA:0xb44dff,curbB:0x00e5ff,line:0x00e5ff,hemi:0.8,sun:0.6,decor:'space'}}
 ];
 
 /* ================= 網路層 ================= */
@@ -359,6 +371,7 @@ function buildTrack(ti){
   ribbon(-W/2,W/2,0.09,i=>(i<2?cW:null));
   buildGate();
   buildDecor(th.decor,mulberry32(1234+ti*77));
+  buildDecorExtra(th.decor,mulberry32(999+ti*31));
   buildMini();
 }
 function ribbon(o1,o2,y,pick){
@@ -433,6 +446,72 @@ function buildDecor(type,rng){
       const a=new THREE.Mesh(ag,cm);a.position.set(x+1.3,4.5,z);add(a);
       const b=new THREE.Mesh(ag,cm);b.position.set(x-1.3,3.8,z);add(b);
     });
+  }
+}
+function buildDecorExtra(type,rng){
+  if(!['coast','autumn','volcano','space'].includes(type))return;
+  const add=m=>trackGroup.add(m);
+  let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+  P.forEach(p=>{minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z);});
+  const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2;
+
+  if(type==='coast'){
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(3000,1500),new THREE.MeshLambertMaterial({color:0x1b8fd6}));
+    sea.rotation.x=-Math.PI/2;sea.position.set(cx,0.06,maxZ+70+750);add(sea);
+    const sunM=new THREE.Mesh(new THREE.SphereGeometry(60,16,16),new THREE.MeshBasicMaterial({color:0xffd27a,fog:false}));
+    sunM.position.set(cx,80,maxZ+1100);add(sunM);
+    const tm=new THREE.MeshLambertMaterial({color:0x8a6a3a}),lm=new THREE.MeshLambertMaterial({color:0x2e9e4a});
+    const tg=new THREE.CylinderGeometry(0.5,0.8,10,6),lg=new THREE.BoxGeometry(6,0.25,1.6);
+    scatter(rng,140,22,(x,z)=>{
+      if(z>maxZ+50)return;
+      const t=new THREE.Mesh(tg,tm);t.position.set(x,5,z);add(t);
+      for(let k=0;k<5;k++){const a=k*1.2566;const l=new THREE.Mesh(lg,lm);
+        l.position.set(x+Math.cos(a)*2.6,10,z+Math.sin(a)*2.6);l.rotation.y=-a;l.rotation.z=-0.35;add(l);}
+    });
+  }
+  else if(type==='autumn'){
+    const tg=new THREE.CylinderGeometry(0.6,0.8,4,6),lg=new THREE.ConeGeometry(3.4,9,7);
+    const tm=new THREE.MeshLambertMaterial({color:0x5a3a1e});
+    const lms=[0xd9541e,0xf2a31b,0xb3261e,0xe8c547].map(c=>new THREE.MeshLambertMaterial({color:c}));
+    scatter(rng,320,26,(x,z)=>{
+      const s=0.8+rng()*0.9;
+      const t=new THREE.Mesh(tg,tm);t.position.set(x,2*s,z);t.scale.setScalar(s);add(t);
+      const l=new THREE.Mesh(lg,lms[Math.floor(rng()*4)]);l.position.set(x,8*s,z);l.scale.setScalar(s);add(l);
+    });
+  }
+  else if(type==='volcano'){
+    const v=new THREE.Mesh(new THREE.CylinderGeometry(25,135,170,28),new THREE.MeshLambertMaterial({color:0x2a1a16}));
+    v.position.set(cx,85,cz);add(v);
+    const cr=new THREE.Mesh(new THREE.CircleGeometry(25,28),new THREE.MeshBasicMaterial({color:0xff5a00}));
+    cr.rotation.x=-Math.PI/2;cr.position.set(cx,170.5,cz);add(cr);
+    const pm=new THREE.MeshBasicMaterial({color:0xff4d00}),pg=new THREE.CircleGeometry(1,20);
+    scatter(rng,45,26,(x,z)=>{const s=6+rng()*10;const m=new THREE.Mesh(pg,pm);
+      m.rotation.x=-Math.PI/2;m.scale.set(s,s,1);m.position.set(x,0.04,z);add(m);});
+    const rg=new THREE.DodecahedronGeometry(1),rm=new THREE.MeshLambertMaterial({color:0x3a3532});
+    scatter(rng,110,30,(x,z)=>{const m=new THREE.Mesh(rg,rm);const s=3+rng()*8;
+      m.scale.set(s,s*(0.6+rng()*0.8),s);m.position.set(x,s*0.35,z);m.rotation.y=rng()*6;add(m);});
+  }
+  else if(type==='space'){
+    const n=1600,pos=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const R=700+rng()*400,th=rng()*Math.PI*2,ph=rng()*1.4;
+      pos[i*3]=cx+R*Math.cos(th)*Math.cos(ph);pos[i*3+1]=R*Math.sin(ph)-20;pos[i*3+2]=cz+R*Math.sin(th)*Math.cos(ph);
+    }
+    const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:2.5,sizeAttenuation:false,fog:false})));
+    const planet=new THREE.Mesh(new THREE.SphereGeometry(140,24,24),new THREE.MeshLambertMaterial({color:0x5b3fd6,fog:false}));
+    planet.position.set(cx+450,200,cz-700);add(planet);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(210,10,8,48),new THREE.MeshBasicMaterial({color:0xb9a6ff,fog:false}));
+    ring.position.copy(planet.position);ring.rotation.x=Math.PI/2.4;add(ring);
+    const pg=new THREE.CylinderGeometry(0.3,0.3,14,6);
+    const pm=[new THREE.MeshBasicMaterial({color:0x00e5ff}),new THREE.MeshBasicMaterial({color:0xff3df2})];
+    for(let i=0,k=0;i<N;i+=12,k++)for(const s of[-1,1]){
+      const o=s*(W/2+4);const m=new THREE.Mesh(pg,pm[k%2]);
+      m.position.set(P[i].x+Nn[i].x*o,7,P[i].z+Nn[i].z*o);add(m);
+    }
+    const ag=new THREE.DodecahedronGeometry(1),am=new THREE.MeshLambertMaterial({color:0x6a6280});
+    scatter(rng,60,30,(x,z)=>{const s=3+rng()*7;const m=new THREE.Mesh(ag,am);
+      m.scale.set(s,s*0.8,s);m.position.set(x,5+rng()*35,z);m.rotation.set(rng()*6,rng()*6,0);add(m);});
   }
 }
 function buildMini(){

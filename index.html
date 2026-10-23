@@ -184,10 +184,14 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 let TOTAL_LAPS=3;
 const N=500;
 const CARS=[
- {name:'新手小跑',tag:'掀背小車',price:0,   top:56,acc:30,handle:1.00,nitro:1.0,len:4.0,style:'hatch', accent:0xff8a00,rim:0xdddddd},
- {name:'街頭閃電',tag:'肌肉跑車',price:300, top:62,acc:34,handle:1.05,nitro:1.0,len:4.7,style:'muscle',accent:0xffffff,rim:0xbbbbbb},
- {name:'漂移之王',tag:'漂移戰車',price:600, top:60,acc:32,handle:1.25,nitro:1.1,len:4.5,style:'drift', accent:0xb44dff,rim:0xffc933,glow:0xb44dff},
- {name:'極速幽靈 GT',tag:'超跑',price:1000,top:70,acc:36,handle:1.00,nitro:1.2,len:4.8,style:'super', accent:0x00e5ff,rim:0xe8e8e8,glow:0x00e5ff}
+ {name:'新手小跑',tag:'掀背小車・全能入門',price:0,   top:56,acc:30,handle:1.10,nitro:1.00,off:0.55,len:4.0,style:'hatch',  accent:0xff8a00,rim:0xdddddd},
+ {name:'街頭閃電',tag:'肌肉跑車・直線衝刺',price:300, top:58,acc:33,handle:0.95,nitro:1.00,off:0.55,len:4.7,style:'muscle', accent:0xffffff,rim:0xbbbbbb},
+ {name:'漂移之王',tag:'漂移戰車・彎道集氣',price:700,top:57,acc:31,handle:1.40,nitro:1.35,off:0.55,len:4.5,style:'drift',  accent:0xb44dff,rim:0xffc933,glow:0xb44dff},
+ {name:'極速幽靈 GT',tag:'超跑・極速取向',price:1200,top:62,acc:29,handle:1.00,nitro:1.00,off:0.50,len:4.8,style:'super',  accent:0x00e5ff,rim:0xe8e8e8,glow:0x00e5ff},
+ {name:'越野猛獸',tag:'越野・草地不減速',price:1800,top:59,acc:37,handle:1.20,nitro:1.10,off:0.90,len:4.4,style:'rally',  accent:0xff6a00,rim:0x222222},
+ {name:'電光 EV',tag:'電動跑車・超強氮氣',price:2500,top:60,acc:41,handle:1.15,nitro:1.55,off:0.55,len:4.6,style:'ev',     accent:0x39ff88,rim:0x39ff88,glow:0x39ff88},
+ {name:'F-One',tag:'方程式・極速與操控',price:3200,top:67,acc:38,handle:1.45,nitro:0.85,off:0.40,len:5.0,style:'formula',accent:0xff2a2a,rim:0xdddddd},
+ {name:'幻影 X1',tag:'旗艦超跑・全能',price:4500,top:66,acc:38,handle:1.35,nitro:1.05,off:0.60,len:4.9,style:'hyper',  accent:0xffc400,rim:0xffc400,glow:0xffc400}
 ];
 const COLORS=[0xe53935,0x1e88e5,0xfdd835,0x43a047,0xff7a00,0x8e24aa,0xeeeeee,0x222222];
 const AI_NAMES=['小明','阿凱','Lisa'];
@@ -975,7 +979,8 @@ function showResult(){
   $('resBody').innerHTML=`<h2>${curT.name}　你的名次:第 ${rank} 名</h2>
    <table><tr><th>名次</th><th>車手</th><th>成績</th></tr>${r.map((c,i)=>`<tr><td>${i+1}</td><td>${esc(c.name)}</td><td>${c.finished?fmt(c.finishTime):'未完賽'}</td></tr>`).join('')}</table>
    <div>本場最佳單圈:${fmt(bestThisRace)}　此地圖最佳:${fmt(bestOf(curMap))}</div>
-   <div>獲得金幣:+${reward} 💰(現有 ${save.coins})</div>`;
+   <div>獲得金幣:+${reward} 💰(現有 ${save.coins})</div>
+   <div style="font-size:13px;opacity:.75">${rewardInfo}</div>`;
   $('hud').classList.add('hidden');$('touch').classList.add('hidden');$('result').classList.remove('hidden');
 }
 

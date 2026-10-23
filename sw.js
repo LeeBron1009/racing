@@ -1,4 +1,4 @@
-const CACHE='racing-v1';
+const CACHE='racing-v2';
 const FILES=['./','index.html','three.module.js','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));
